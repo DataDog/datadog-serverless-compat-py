@@ -69,7 +69,10 @@ def start():
 
     if sys.platform not in {"win32", "linux"}:
         logger.error(
-            f"Platform {sys.platform} detected, the Datadog Serverless Compatibility Layer is only supported on Windows and Linux"
+            (
+                f"Platform {sys.platform} detected, the Datadog Serverless Compatibility Layer is only supported",
+                " on Windows and Linux",
+            )
         )
         return
 
