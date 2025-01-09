@@ -56,8 +56,10 @@ jobs:
           chmod +x datadog_serverless_compat/bin/windows-amd64/datadog-serverless-compat.exe
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: "3.9 - 3.11"
-      - run: python3 -m pip install poetry
+          python-version: "3.9 - 3.12"
+      - uses: snok/install-poetry@v76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: 1.8.5
       - run: poetry build
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
