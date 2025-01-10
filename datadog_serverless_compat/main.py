@@ -40,6 +40,7 @@ def get_environment():
 def get_binary_path():
     # Use user defined path if provided
     binary_path = os.getenv("DD_SERVERLESS_COMPAT_PATH")
+
     if binary_path is not None:
         return binary_path
 

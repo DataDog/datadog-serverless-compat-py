@@ -27,6 +27,11 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.9"
 
+[tool.poetry.group.dev.dependencies]
+black = "^24.10.0"
+flake8 = "^7.1.1"
+pytest = "^8.3.4"
+
 
 [build-system]
 requires = ["poetry-core"]
