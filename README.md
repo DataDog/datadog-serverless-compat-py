@@ -48,6 +48,6 @@ Alternatively disable logs for the Datadog Serverless Compatibility Layer with t
 DD_LOG_LEVEL=off
 ```
 
-1. For additional tracing configuration options, see the [official documentation for Datadog trace client](https://datadoghq.dev/dd-trace-js/).
+1. For additional tracing configuration options, see the [official documentation for Datadog trace client](https://ddtrace.readthedocs.io/en/stable/configuration.html).
 
 2. If installing to Azure Functions, install the [Datadog Azure Integration](https://docs.datadoghq.com/integrations/azure/#setup) and set tags on your Azure Functions to further extend unified service tagging. This allows for Azure Function metrics and other Azure metrics to be correlated with traces.
