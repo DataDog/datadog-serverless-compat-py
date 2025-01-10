@@ -29,7 +29,6 @@ patch_all()
   - `DD_ENV` = `<ENVIRONMENT`
   - `DD_SERVICE` = `<SERVICE NAME>`
   - `DD_VERSION` = `<VERSION>`
-  - `DD_TRACE_STATS_COMPUTATION_ENABLED` = `true`
 
 The default Datadog site is **datadoghq.com**. To use a different site, set the `DD_SITE` environment variable to the desired destination site. See [Getting Started with Datadog Sites](https://docs.datadoghq.com/getting_started/site/) for the available site values.
 
@@ -49,6 +48,6 @@ Alternatively disable logs for the Datadog Serverless Compatibility Layer with t
 DD_LOG_LEVEL=off
 ```
 
-2. For additional tracing configuration options, see the [official documentation for Datadog trace client](https://datadoghq.dev/dd-trace-js/).
+1. For additional tracing configuration options, see the [official documentation for Datadog trace client](https://datadoghq.dev/dd-trace-js/).
 
-3. If installing to Azure Functions, install the [Datadog Azure Integration](https://docs.datadoghq.com/integrations/azure/#setup) and set tags on your Azure Functions to further extend unified service tagging. This allows for Azure Function metrics and other Azure metrics to be correlated with traces.
+2. If installing to Azure Functions, install the [Datadog Azure Integration](https://docs.datadoghq.com/integrations/azure/#setup) and set tags on your Azure Functions to further extend unified service tagging. This allows for Azure Function metrics and other Azure metrics to be correlated with traces.
