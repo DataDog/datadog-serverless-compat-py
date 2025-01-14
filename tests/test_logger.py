@@ -45,3 +45,16 @@ def test_logger_level_initialization_from_env_var(monkeypatch, test_input, expec
     level_name = logging.getLevelName(level)
 
     assert level_name == expected
+
+
+def test_logger_level_initialization_from_env_var_none(monkeypatch):
+    monkeypatch.delenv("DD_LOG_LEVEL", raising=False)
+
+    logger = logging.getLogger(__name__)
+
+    datadog_serverless_compat.initialize_logging(__name__)
+
+    level = logger.getEffectiveLevel()
+    level_name = logging.getLevelName(level)
+
+    assert level_name == "INFO"

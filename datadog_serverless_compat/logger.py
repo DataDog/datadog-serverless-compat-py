@@ -17,7 +17,7 @@ except AttributeError:
 def initialize_logging(name):
     logger = logging.getLogger(name)
 
-    str_level = (os.environ.get("DD_LOG_LEVEL") or "INFO").upper()
+    str_level = (os.environ.get("DD_LOG_LEVEL", "INFO")).upper()
     level = level_mapping.get(str_level)
 
     if level is None:
