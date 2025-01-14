@@ -1,0 +1,8 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# Compiled Binaries
+bin
+
+# Distribution / packaging
+dist/
