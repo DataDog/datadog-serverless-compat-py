@@ -1,4 +1,5 @@
 from enum import Enum
+from importlib.metadata import PackageNotFoundError, version
 import logging
 import os
 from subprocess import Popen
@@ -56,6 +57,18 @@ def get_binary_path():
     return binary_path
 
 
+# Pass package version to binary via environment variable
+def set_package_version():
+    try:
+        package_version = version("datadog-serverless-compat")
+    except PackageNotFoundError as err:
+        logger.error(f"Unable to identify package version: {err}")
+        package_version = "unknown"
+
+    logger.debug(f"Setting DD_SERVERLESS_COMPAT_VERSION to {package_version}")
+    os.environ["DD_SERVERLESS_COMPAT_VERSION"] = package_version
+
+
 def start():
     environment = get_environment()
     logger.debug(f"Environment detected: {environment}")
@@ -85,6 +98,8 @@ def start():
             f"Serverless Compatibility Layer did not start, could not find binary at path {binary_path}"
         )
         return
+
+    set_package_version()
 
     try:
         logger.debug(
