@@ -1,5 +1,5 @@
 from enum import Enum
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import version
 import logging
 import os
 from subprocess import Popen
@@ -61,8 +61,8 @@ def get_binary_path():
 def set_package_version():
     try:
         package_version = version("datadog-serverless-compat")
-    except PackageNotFoundError as err:
-        logger.error(f"Unable to identify package version: {err}")
+    except Exception as e:
+        logger.error(f"Unable to identify package version: {e}")
         package_version = "unknown"
 
     logger.debug(f"Setting DD_SERVERLESS_COMPAT_VERSION to {package_version}")
