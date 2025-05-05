@@ -1,0 +1,4 @@
+Component,Origin,License,Copyright
+black,https://github.com/psf/black,MIT,Copyright (c) 2018 Łukasz Langa
+flake8,https://github.com/PyCQA/flake8,MIT,Copyright (C) 2011-2013 Tarek Ziade <tarek@ziade.org> Copyright (C) 2012-2016 Ian Cordasco <graffatcolmingov@gmail.com>
+pytest,https://github.com/pytest-dev/pytest,MIT,Copyright (c) 2004 Holger Krekel and others
