@@ -57,16 +57,14 @@ def get_binary_path():
     return binary_path
 
 
-# Pass package version to binary via environment variable
-def set_package_version():
+def get_package_version():
     try:
         package_version = version("datadog-serverless-compat")
     except Exception as e:
         logger.error(f"Unable to identify package version: {e}")
         package_version = "unknown"
 
-    logger.debug(f"Setting DD_SERVERLESS_COMPAT_VERSION to {package_version}")
-    os.environ["DD_SERVERLESS_COMPAT_VERSION"] = package_version
+    return package_version
 
 
 def start():
@@ -99,13 +97,16 @@ def start():
         )
         return
 
-    set_package_version()
+    package_version = get_package_version()
+    logger.debug(f"Found package version {package_version}")
 
     try:
         logger.debug(
             f"Trying to spawn the Serverless Compatibility Layer at path: {binary_path}"
         )
-        Popen(binary_path)
+        env = os.environ.copy()
+        env["DD_SERVERLESS_COMPAT_VERSION"] = package_version
+        Popen(binary_path, env=env)
     except Exception as e:
         logger.error(
             f"An unexpected error occurred while spawning Serverless Compatibility Layer process: {repr(e)}"
