@@ -2,8 +2,10 @@ from enum import Enum
 from importlib.metadata import version
 import logging
 import os
+import shutil
 from subprocess import Popen
 import sys
+import tempfile
 
 
 logger = logging.getLogger(__name__)
@@ -101,12 +103,16 @@ def start():
     logger.debug(f"Found package version {package_version}")
 
     try:
-        logger.debug(
-            f"Trying to spawn the Serverless Compatibility Layer at path: {binary_path}"
-        )
+        temp_dir = os.path.join(tempfile.gettempdir(), "datadog")
+        os.makedirs(temp_dir, exist_ok=True)
+        executable_file_path = os.path.join(temp_dir, os.path.basename(binary_path))
+        shutil.copy2(binary_path, executable_file_path)
+        os.chmod(executable_file_path, 0o755)
+        logger.debug(f"Spawning process from binary at path {executable_file_path}")
+
         env = os.environ.copy()
         env["DD_SERVERLESS_COMPAT_VERSION"] = package_version
-        Popen(binary_path, env=env)
+        Popen(executable_file_path, env=env)
     except Exception as e:
         logger.error(
             f"An unexpected error occurred while spawning Serverless Compatibility Layer process: {repr(e)}"
