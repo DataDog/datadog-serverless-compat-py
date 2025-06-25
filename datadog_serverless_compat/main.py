@@ -91,7 +91,6 @@ def start():
         return
 
     binary_path = get_binary_path()
-    logger.debug(f"Spawning process from binary at path {binary_path}")
 
     if not os.path.exists(binary_path):
         logger.error(
