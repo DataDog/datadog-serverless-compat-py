@@ -107,7 +107,7 @@ def start():
         os.makedirs(temp_dir, exist_ok=True)
         executable_file_path = os.path.join(temp_dir, os.path.basename(binary_path))
         shutil.copy2(binary_path, executable_file_path)
-        os.chmod(executable_file_path, 0o755)
+        os.chmod(executable_file_path, 0o744)
         logger.debug(f"Spawning process from binary at path {executable_file_path}")
 
         env = os.environ.copy()
