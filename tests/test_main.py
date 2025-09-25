@@ -73,3 +73,59 @@ def test_get_binary_path_from_env_var(monkeypatch):
     binary_path = main.get_binary_path()
 
     assert binary_path == user_configured_path
+
+@pytest.mark.parametrize(
+    "test_input, expected",
+    [
+        ("00000000-0000-0000-0000-000000000000+test-rg-EastUSwebspace-Linux", "test-rg"),
+        ("00000000-0000-0000-0000-000000000000+test-rg-EastUSwebspace", "test-rg"),
+        ("foo", None),
+    ],
+)
+def test_extract_resource_group(test_input, expected):
+    result = main.extract_resource_group(test_input)
+    assert result == expected
+
+@pytest.mark.parametrize(
+    "dd_azure_rg, website_rg, website_owner_name, expected",
+    [
+        ("dd-azure-rg", None, None, "dd-azure-rg"),
+        (None, "website-rg", None, "website-rg"),
+        (None, None, "00000000-0000-0000-0000-000000000000+website-owner-name-rg-EastUSwebspace-Linux", "website-owner-name-rg"),
+        (None, "website-rg", "00000000-0000-0000-0000-000000000000+website-owner-name-rg-EastUSwebspace-Linux", "website-rg"),
+        ("dd-azure-rg", "website-rg", "00000000-0000-0000-0000-000000000000+website-owner-name-rg-EastUSwebspace-Linux", "dd-azure-rg"),
+    ],
+)
+def test_get_azure_resource_group(monkeypatch, dd_azure_rg, website_rg, website_owner_name, expected):
+    monkeypatch.delenv("DD_AZURE_RESOURCE_GROUP", raising=False)
+    monkeypatch.delenv("WEBSITE_RESOURCE_GROUP", raising=False)
+    monkeypatch.delenv("WEBSITE_OWNER_NAME", raising=False)
+    
+    # Set test environment variables only if they're not None
+    if dd_azure_rg is not None:
+        monkeypatch.setenv("DD_AZURE_RESOURCE_GROUP", dd_azure_rg)
+    if website_rg is not None:
+        monkeypatch.setenv("WEBSITE_RESOURCE_GROUP", website_rg)
+    if website_owner_name is not None:
+        monkeypatch.setenv("WEBSITE_OWNER_NAME", website_owner_name)
+
+    result = main.get_azure_resource_group()
+    assert result == expected
+
+def test_start_azure_function_flex_no_dd_azure_rg_env_var(caplog, monkeypatch):
+    """Test that the start function logs an error when DD_AZURE_RESOURCE_GROUP is not set for Azure functions on flex consumption plans"""
+    
+    # Set up Azure Function environment with flex plan
+    monkeypatch.setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
+    monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME", "python")
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    monkeypatch.delenv("DD_AZURE_RESOURCE_GROUP", raising=False)
+    monkeypatch.delenv("WEBSITE_RESOURCE_GROUP", raising=False)
+    monkeypatch.setenv("WEBSITE_OWNER_NAME", "00000000-0000-0000-0000-000000000000+flex-EastUSwebspace-Linux")
+
+    main.start()
+
+    # Verify error was logged
+    expected_message = "Unable to determine Azure resource group. This may indicate a flex consumption plan without the DD_AZURE_RESOURCE_GROUP environment variable set. Shutting down Datadog Serverless Compatibility Layer."
+    assert expected_message in caplog.text

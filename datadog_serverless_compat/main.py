@@ -6,9 +6,15 @@ import shutil
 from subprocess import Popen
 import sys
 import tempfile
+import re
 
 
 logger = logging.getLogger(__name__)
+
+# Azure environment variable constants
+DD_AZURE_RESOURCE_GROUP = "DD_AZURE_RESOURCE_GROUP"
+WEBSITE_RESOURCE_GROUP = "WEBSITE_RESOURCE_GROUP"
+WEBSITE_OWNER_NAME = "WEBSITE_OWNER_NAME"
 
 
 class CloudEnvironment(Enum):
@@ -68,6 +74,39 @@ def get_package_version():
 
     return package_version
 
+def extract_resource_group(website_owner_name):
+    """
+    Extract resource group from website owner name, matching libdatadog implementation.
+    """
+    if not website_owner_name:
+        return None
+
+    pattern = re.compile(r".+\+(.+)-.+webspace(-Linux)?")
+    match = pattern.match(website_owner_name)
+    return match.group(1) if match else None
+
+def get_azure_resource_group():
+    """
+    Get Azure resource group from environment variables, matching libdatadog implementation.
+
+    Returns:
+        str or None: The resource group name, or None
+    """
+    resource_group = os.environ.get(DD_AZURE_RESOURCE_GROUP)
+    if resource_group is None:
+        resource_group = os.environ.get(WEBSITE_RESOURCE_GROUP)
+    if resource_group:
+        return resource_group
+    
+    extracted = extract_resource_group(os.environ.get("WEBSITE_OWNER_NAME"))
+
+    # If extracted group nme is "flex" and DD_AZURE_RESOURCE_GROUP is not set, return None
+    if extracted == "flex":
+        return None
+    
+    return extracted
+
+
 
 def start():
     environment = get_environment()
@@ -89,6 +128,11 @@ def start():
             )
         )
         return
+
+    if environment == CloudEnvironment.AZURE_FUNCTION:
+        if get_azure_resource_group() is None:
+            logger.error("Unable to determine Azure resource group. This may indicate a flex consumption plan without the DD_AZURE_RESOURCE_GROUP environment variable set. Shutting down Datadog Serverless Compatibility Layer.")
+            return
 
     binary_path = get_binary_path()
 
