@@ -6,15 +6,12 @@ import shutil
 from subprocess import Popen
 import sys
 import tempfile
-import re
 
 
 logger = logging.getLogger(__name__)
 
 # Azure environment variable constants
 DD_AZURE_RESOURCE_GROUP = "DD_AZURE_RESOURCE_GROUP"
-WEBSITE_RESOURCE_GROUP = "WEBSITE_RESOURCE_GROUP"
-WEBSITE_OWNER_NAME = "WEBSITE_OWNER_NAME"
 WEBSITE_SKU = "WEBSITE_SKU"
 
 
