@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 DD_AZURE_RESOURCE_GROUP = "DD_AZURE_RESOURCE_GROUP"
 WEBSITE_RESOURCE_GROUP = "WEBSITE_RESOURCE_GROUP"
 WEBSITE_OWNER_NAME = "WEBSITE_OWNER_NAME"
+WEBSITE_SKU = "WEBSITE_SKU"
 
 
 class CloudEnvironment(Enum):
@@ -74,38 +75,8 @@ def get_package_version():
 
     return package_version
 
-def extract_resource_group(website_owner_name):
-    """
-    Extract resource group from website owner name, matching libdatadog implementation.
-    """
-    if not website_owner_name:
-        return None
-
-    pattern = re.compile(r".+\+(.+)-.+webspace(-Linux)?")
-    match = pattern.match(website_owner_name)
-    return match.group(1) if match else None
-
-def get_azure_resource_group():
-    """
-    Get Azure resource group from environment variables, matching libdatadog implementation.
-
-    Returns:
-        str or None: The resource group name, or None
-    """
-    resource_group = os.environ.get(DD_AZURE_RESOURCE_GROUP)
-    if resource_group is None:
-        resource_group = os.environ.get(WEBSITE_RESOURCE_GROUP)
-    if resource_group:
-        return resource_group
-    
-    extracted = extract_resource_group(os.environ.get("WEBSITE_OWNER_NAME"))
-
-    # If extracted group nme is "flex" and DD_AZURE_RESOURCE_GROUP is not set, return None
-    if extracted == "flex":
-        return None
-    
-    return extracted
-
+def is_azure_flex_without_dd_azure_rg_env_var():
+    return os.environ.get(WEBSITE_SKU) == "FlexConsumption" and os.environ.get(DD_AZURE_RESOURCE_GROUP) is None
 
 
 def start():
@@ -130,8 +101,8 @@ def start():
         return
 
     if environment == CloudEnvironment.AZURE_FUNCTION:
-        if get_azure_resource_group() is None:
-            logger.error("Unable to determine Azure resource group. This may indicate a flex consumption plan without the DD_AZURE_RESOURCE_GROUP environment variable set. Shutting down Datadog Serverless Compatibility Layer.")
+        if is_azure_flex_without_dd_azure_rg_env_var():
+            logger.error("Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer.")
             return
 
     binary_path = get_binary_path()
