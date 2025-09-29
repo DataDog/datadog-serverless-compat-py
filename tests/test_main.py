@@ -84,9 +84,6 @@ def test_get_binary_path_from_env_var(monkeypatch):
     ],
 )
 def test_is_azure_flex_without_dd_azure_rg_env_var(monkeypatch, website_sku, dd_azure_rg, expected):
-    monkeypatch.delenv("WEBSITE_SKU", raising=False)
-    monkeypatch.delenv("DD_AZURE_RESOURCE_GROUP", raising=False)
-
     # Set test environment variables only if they're not None
     if website_sku is not None:
         monkeypatch.setenv("WEBSITE_SKU", website_sku)
@@ -104,8 +101,6 @@ def test_start_azure_function_flex_no_dd_azure_rg_env_var(caplog, monkeypatch):
     monkeypatch.setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
     monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME", "python")
     monkeypatch.setattr(sys, "platform", "linux")
-
-    monkeypatch.delenv("DD_AZURE_RESOURCE_GROUP", raising=False)
     monkeypatch.setenv("WEBSITE_SKU", "FlexConsumption")
 
     main.start()
