@@ -105,4 +105,5 @@ def test_start_azure_function_flex_no_dd_azure_rg_env_var(caplog, monkeypatch):
 
     # Verify error was logged
     expected_message = "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer."
+    
     assert expected_message in caplog.text
