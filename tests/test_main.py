@@ -84,9 +84,7 @@ def test_get_binary_path_from_env_var(monkeypatch):
     ],
 )
 def test_is_azure_flex_without_dd_azure_rg_env_var(monkeypatch, website_sku, dd_azure_rg, expected):
-    # Set test environment variables only if they're not None
-    if website_sku is not None:
-        monkeypatch.setenv("WEBSITE_SKU", website_sku)
+    monkeypatch.setenv("WEBSITE_SKU", website_sku)
     if dd_azure_rg is not None:
         monkeypatch.setenv("DD_AZURE_RESOURCE_GROUP", dd_azure_rg)
 
