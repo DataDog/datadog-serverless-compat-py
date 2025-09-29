@@ -10,10 +10,6 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
-# Azure environment variable constants
-DD_AZURE_RESOURCE_GROUP = "DD_AZURE_RESOURCE_GROUP"
-WEBSITE_SKU = "WEBSITE_SKU"
-
 
 class CloudEnvironment(Enum):
     AZURE_FUNCTION = "Azure Function"
@@ -73,7 +69,7 @@ def get_package_version():
     return package_version
 
 def is_azure_flex_without_dd_azure_rg_env_var():
-    return os.environ.get(WEBSITE_SKU) == "FlexConsumption" and os.environ.get(DD_AZURE_RESOURCE_GROUP) is None
+    return os.environ.get("WEBSITE_SKU") == "FlexConsumption" and os.environ.get("DD_AZURE_RESOURCE_GROUP") is None
 
 
 def start():
