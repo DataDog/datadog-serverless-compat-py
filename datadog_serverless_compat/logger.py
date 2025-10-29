@@ -26,7 +26,7 @@ def initialize_logging(name):
     else:
         logger.setLevel(level)
     
-    log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+    log_format = "%(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
     log_formatter = logging.Formatter(log_format)
 
     console_handler = logging.StreamHandler()
