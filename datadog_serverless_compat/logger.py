@@ -25,3 +25,11 @@ def initialize_logging(name):
         logger.warning("Invalid log level: %s Defaulting to INFO", str_level)
     else:
         logger.setLevel(level)
+    
+    log_format = "%(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+    log_formatter = logging.Formatter(log_format)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+
+    logger.addHandler(console_handler)
