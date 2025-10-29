@@ -74,11 +74,11 @@ def is_azure_flex_without_dd_azure_rg_env_var():
 
 def start():
     environment = get_environment()
-    logger.debug(f"Environment detected: {environment}")
+    logger.debug(f"Environment detected: {environment.value}")
 
     if environment == CloudEnvironment.UNKNOWN:
         logger.error(
-            f"{environment} environment detected, will not start the Datadog Serverless Compatibility Layer"
+            f"{environment.value} environment detected, will not start the Datadog Serverless Compatibility Layer"
         )
         return
 
@@ -86,10 +86,8 @@ def start():
 
     if sys.platform not in {"win32", "linux"}:
         logger.error(
-            (
-                f"Platform {sys.platform} detected, the Datadog Serverless Compatibility Layer is only supported",
-                " on Windows and Linux",
-            )
+            f"Platform {sys.platform} detected, the Datadog Serverless Compatibility Layer is only supported"
+            " on Windows and Linux"
         )
         return
 
