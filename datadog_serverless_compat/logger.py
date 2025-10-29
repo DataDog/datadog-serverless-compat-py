@@ -25,3 +25,5 @@ def initialize_logging(name):
         logger.warning("Invalid log level: %s Defaulting to INFO", str_level)
     else:
         logger.setLevel(level)
+
+    logger.addHandler(logging.StreamHandler())
