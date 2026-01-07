@@ -117,7 +117,7 @@ def start():
         env = os.environ.copy()
         env["DD_SERVERLESS_COMPAT_VERSION"] = package_version
         Popen(executable_file_path, env=env)
-    except Exception as e:
-        logger.error(
-            f"An unexpected error occurred while spawning Serverless Compatibility Layer process: {repr(e)}"
+    except Exception:
+        logger.exception(
+            "An unexpected error occurred while spawning Serverless Compatibility Layer process"
         )
