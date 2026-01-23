@@ -78,13 +78,14 @@ jobs:
   publish:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     needs: [build]
     steps:
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
       - uses: pypa/gh-action-pypi-publish@67339c736fd9354cd4f8cb0b744f2b82a74b5c70 # v1.12.3
         with:
           packages-dir: dist/
-          password: ${{ github.event.inputs.publish-destination == 'PyPI' && secrets.PYPI_SERVERLESS_COMPAT_API_TOKEN || secrets.PYPI_SERVERLESS_COMPAT_API_TOKEN_TEST }}
           repository-url: ${{ github.event.inputs.publish-destination == 'PyPI' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
   release:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' && github.event.inputs.publish-destination == 'PyPI' }}
