@@ -19,6 +19,11 @@ on:
         options:
           - "TestPyPI"
           - "PyPI"
+      package-version-override:
+        description: "Package version override (optional, x.y.z)"
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -32,11 +37,15 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: package
         run: |
-          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
-            exit 1
+          if [[ -n "${{ github.event.inputs.package-version-override }}" ]]; then
+            PACKAGE_VERSION="${{ github.event.inputs.package-version-override }}"
+          else
+            if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+              echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
+              exit 1
+            fi
+            PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
           fi
-          PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
 
           echo "package-version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
       - id: serverlesscompatbinary
@@ -78,13 +87,14 @@ jobs:
   publish:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     needs: [build]
     steps:
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
       - uses: pypa/gh-action-pypi-publish@67339c736fd9354cd4f8cb0b744f2b82a74b5c70 # v1.12.3
         with:
           packages-dir: dist/
-          password: ${{ github.event.inputs.publish-destination == 'PyPI' && secrets.PYPI_SERVERLESS_COMPAT_API_TOKEN || secrets.PYPI_SERVERLESS_COMPAT_API_TOKEN_TEST }}
           repository-url: ${{ github.event.inputs.publish-destination == 'PyPI' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
   release:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' && github.event.inputs.publish-destination == 'PyPI' }}
