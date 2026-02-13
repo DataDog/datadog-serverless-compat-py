@@ -47,11 +47,6 @@ d = ["aiohttp (>=3.10)"]
 jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2)"]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "click"
 version = "8.1.8"
@@ -67,11 +62,6 @@ files = [
 [package.dependencies]
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "colorama"
 version = "0.4.6"
@@ -84,11 +74,6 @@ files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
-
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
 
 [[package]]
 name = "exceptiongroup"
@@ -109,11 +94,6 @@ typing-extensions = {version = ">=4.6.0", markers = "python_version < \"3.13\""}
 [package.extras]
 test = ["pytest (>=6)"]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "flake8"
 version = "7.3.0"
@@ -131,11 +111,6 @@ mccabe = ">=0.7.0,<0.8.0"
 pycodestyle = ">=2.14.0,<2.15.0"
 pyflakes = ">=3.4.0,<3.5.0"
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "iniconfig"
 version = "2.1.0"
@@ -147,11 +122,6 @@ files = [
     {file = "iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760"},
     {file = "iniconfig-2.1.0.tar.gz", hash = "sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7"},
 ]
-
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
 
 [[package]]
 name = "mccabe"
@@ -165,11 +135,6 @@ files = [
     {file = "mccabe-0.7.0.tar.gz", hash = "sha256:348e0240c33b60bbdf4e523192ef919f28cb2c3d7d5c7794f74009290f236325"},
 ]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "mypy-extensions"
 version = "1.1.0"
@@ -182,11 +147,6 @@ files = [
     {file = "mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558"},
 ]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "packaging"
 version = "26.0"
@@ -198,11 +158,6 @@ files = [
     {file = "packaging-26.0-py3-none-any.whl", hash = "sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529"},
     {file = "packaging-26.0.tar.gz", hash = "sha256:00243ae351a257117b6a241061796684b084ed1c516a08c48a3f7e147a9d80b4"},
 ]
-
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
 
 [[package]]
 name = "pathspec"
@@ -222,11 +177,6 @@ optional = ["typing-extensions (>=4)"]
 re2 = ["google-re2 (>=1.1)"]
 tests = ["pytest (>=9)", "typing-extensions (>=4.15)"]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "platformdirs"
 version = "4.4.0"
@@ -244,11 +194,6 @@ docs = ["furo (>=2024.8.6)", "proselint (>=0.14)", "sphinx (>=8.1.3)", "sphinx-a
 test = ["appdirs (==1.4.4)", "covdefaults (>=2.3)", "pytest (>=8.3.4)", "pytest-cov (>=6)", "pytest-mock (>=3.14)"]
 type = ["mypy (>=1.14.1)"]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "pluggy"
 version = "1.6.0"
@@ -265,11 +210,6 @@ files = [
 dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "pycodestyle"
 version = "2.14.0"
@@ -282,11 +222,6 @@ files = [
     {file = "pycodestyle-2.14.0.tar.gz", hash = "sha256:c4b5b517d278089ff9d0abdec919cd97262a3367449ea1c8b49b91529167b783"},
 ]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "pyflakes"
 version = "3.4.0"
@@ -298,11 +233,6 @@ files = [
     {file = "pyflakes-3.4.0-py2.py3-none-any.whl", hash = "sha256:f742a7dbd0d9cb9ea41e9a24a918996e8170c799fa528688d40dd582c8265f4f"},
     {file = "pyflakes-3.4.0.tar.gz", hash = "sha256:b24f96fafb7d2ab0ec5075b7350b3d2d2218eab42003821c06344973d3ea2f58"},
 ]
-
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
 
 [[package]]
 name = "pygments"
@@ -318,11 +248,6 @@ files = [
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
-
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
 
 [[package]]
 name = "pytest"
@@ -347,11 +272,6 @@ tomli = {version = ">=1", markers = "python_version < \"3.11\""}
 
 [package.extras]
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
-
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
 
 [[package]]
 name = "tomli"
@@ -411,11 +331,6 @@ files = [
     {file = "tomli-2.4.0.tar.gz", hash = "sha256:aa89c3f6c277dd275d8e243ad24f3b5e701491a860d5121f2cdd399fbb31fc9c"},
 ]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [[package]]
 name = "typing-extensions"
 version = "4.15.0"
@@ -429,12 +344,7 @@ files = [
     {file = "typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466"},
 ]
 
-[package.source]
-type = "legacy"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple"
-reference = "internal"
-
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "8f108f179f2589347503ff4f49bd0e3c6d5074d22a778f1b0b54a120e8e64dcb"
+content-hash = "b03e66d96624833cb66207b9609317e88c6b26a69ada77819d6408083b9da726"

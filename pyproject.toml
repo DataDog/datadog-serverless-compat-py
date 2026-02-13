@@ -28,16 +28,9 @@ classifiers = [
 python = "^3.9"
 
 [tool.poetry.group.dev.dependencies]
-black = "^26.1.0"
+black = "^24.10.0"
 flake8 = "^7.1.2"
 pytest = "^8.3.5"
-
-
-
-[[tool.poetry.source]]
-name = "internal"
-url = "https://depot-read-api-python.us1.ddbuild.io/magicmirror/magicmirror/@current/simple/"
-priority = "primary"
 
 [build-system]
 requires = ["poetry-core"]
