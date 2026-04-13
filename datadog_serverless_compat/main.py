@@ -25,16 +25,10 @@ def get_environment():
     ):
         return CloudEnvironment.AZURE_FUNCTION
 
-    if (
-        os.environ.get("FUNCTION_NAME") is not None
-        and os.environ.get("GCP_PROJECT") is not None
-    ):
+    if os.environ.get("FUNCTION_NAME") is not None and os.environ.get("GCP_PROJECT") is not None:
         return CloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_1ST_GEN
 
-    if (
-        os.environ.get("K_SERVICE") is not None
-        and os.environ.get("FUNCTION_TARGET") is not None
-    ):
+    if os.environ.get("K_SERVICE") is not None and os.environ.get("FUNCTION_TARGET") is not None:
         return CloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_2ND_GEN
 
     return CloudEnvironment.UNKNOWN
@@ -52,9 +46,7 @@ def get_binary_path():
         "bin/windows-amd64" if sys.platform == "win32" else "bin/linux-amd64",
     )
     binary_extension = ".exe" if sys.platform == "win32" else ""
-    binary_path = os.path.join(
-        binary_path_os_folder, f"datadog-serverless-compat{binary_extension}"
-    )
+    binary_path = os.path.join(binary_path_os_folder, f"datadog-serverless-compat{binary_extension}")
 
     return binary_path
 
@@ -67,6 +59,7 @@ def get_package_version():
         package_version = "unknown"
 
     return package_version
+
 
 def is_azure_flex_without_dd_azure_rg_env_var():
     return os.environ.get("WEBSITE_SKU") == "FlexConsumption" and os.environ.get("DD_AZURE_RESOURCE_GROUP") is None
@@ -92,15 +85,17 @@ def start():
         return
 
     if environment == CloudEnvironment.AZURE_FUNCTION and is_azure_flex_without_dd_azure_rg_env_var():
-        logger.error("Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer.")
+        logger.error(
+            "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set."
+            " Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name"
+            " in Azure app settings. Shutting down Datadog Serverless Compatibility Layer."
+        )
         return
 
     binary_path = get_binary_path()
 
     if not os.path.exists(binary_path):
-        logger.error(
-            f"Serverless Compatibility Layer did not start, could not find binary at path {binary_path}"
-        )
+        logger.error(f"Serverless Compatibility Layer did not start, could not find binary at path {binary_path}")
         return
 
     package_version = get_package_version()
@@ -118,6 +113,4 @@ def start():
         env["DD_SERVERLESS_COMPAT_VERSION"] = package_version
         Popen(executable_file_path, env=env)
     except Exception:
-        logger.exception(
-            "An unexpected error occurred while spawning Serverless Compatibility Layer process"
-        )
+        logger.exception("An unexpected error occurred while spawning Serverless Compatibility Layer process")
