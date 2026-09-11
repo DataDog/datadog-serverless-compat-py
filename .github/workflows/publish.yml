@@ -1,115 +1,607 @@
 name: Publish packages on PyPI
 
+run-name: >-
+  Python ${{ inputs.release-state }} v${{ inputs.package-version }}
+  (core v${{ inputs.core-version }}, operation ${{ inputs.operation-id }})
+
 on:
   workflow_dispatch:
     inputs:
-      publish-package:
-        description: "Build or Build and Publish?"
+      package-version:
+        description: "Python package version (x.y.z)"
         required: true
-        type: choice
-        default: "Build"
-        options:
-          - "Build"
-          - "Build and Publish"
-      publish-destination:
-        description: "Publish to PyPI or TestPyPI?"
-        required: true
-        type: choice
-        default: "TestPyPI"
-        options:
-          - "TestPyPI"
-          - "PyPI"
-      package-version-override:
-        description: "Package version override (optional, x.y.z)"
-        required: false
         type: string
-        default: ""
+      core-version:
+        description: "Published Serverless Compatibility Layer version (x.y.z)"
+        required: true
+        type: string
+      operation-id:
+        description: "Immutable release operation identifier"
+        required: true
+        type: string
+      release-state:
+        description: "Create the draft or publish its exact artifacts"
+        required: true
+        type: choice
+        options:
+          - draft
+          - published
+
+concurrency:
+  group: python-release-v${{ inputs.package-version }}
+  cancel-in-progress: false
 
 permissions: {}
 
+env:
+  PACKAGE_NAME: datadog-serverless-compat
+  PACKAGE_VERSION: ${{ inputs.package-version }}
+  CORE_VERSION: ${{ inputs.core-version }}
+  OPERATION_ID: ${{ inputs.operation-id }}
+  RELEASE_STATE: ${{ inputs.release-state }}
+  EXPECTED_RELEASE_ACTOR: ${{ vars.RELEASE_AUTOMATION_ACTOR }}
+
 jobs:
-  downloadbinaries:
+  validate:
     runs-on: ubuntu-latest
-    outputs:
-      package-version: ${{ steps.package.outputs.package-version }}
-      serverless-compat-version: ${{ steps.serverlesscompatbinary.outputs.serverless-compat-version }}
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - id: package
+      - name: Authorize release invocation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: |
-          if [[ -n "${{ github.event.inputs.package-version-override }}" ]]; then
-            PACKAGE_VERSION="${{ github.event.inputs.package-version-override }}"
-          else
-            if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-              echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
-              exit 1
-            fi
-            PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
+          set -euo pipefail
+
+          if [[ -z "$EXPECTED_RELEASE_ACTOR" ]]; then
+            echo "RELEASE_AUTOMATION_ACTOR is not configured"
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "This workflow only accepts workflow_dispatch events"
+            exit 1
+          fi
+          if [[ "$ACTOR" != "$EXPECTED_RELEASE_ACTOR" || "$TRIGGERING_ACTOR" != "$EXPECTED_RELEASE_ACTOR" ]]; then
+            echo "The workflow actor and triggering actor must both be the approved release automation actor"
+            exit 1
           fi
 
-          echo "package-version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-      - id: serverlesscompatbinary
+      - name: Validate release inputs and source tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          RESPONSE=$(curl -s "https://api.github.com/repos/datadog/serverless-components/releases")
-          SERVERLESS_COMPAT_VERSION=$(echo "$RESPONSE" | jq -r --arg pattern "datadog-serverless-compat\/v[0-9]*\.[0-9]*\.[0-9]*" '.[] | select(.tag_name | test($pattern)) | .tag_name' | sort -V | tail -n 1)
+          set -euo pipefail
 
-          echo "Using version ${SERVERLESS_COMPAT_VERSION} of Serverless Compatibility Layer binary"
-          echo "serverless-compat-version=$(echo "$SERVERLESS_COMPAT_VERSION" | jq -rR 'ltrimstr("sls-")')" >> "$GITHUB_OUTPUT"
+          version_pattern='^[0-9]+\.[0-9]+\.[0-9]+$'
+          if [[ ! "$PACKAGE_VERSION" =~ $version_pattern ]]; then
+            echo "Invalid package version: $PACKAGE_VERSION"
+            exit 1
+          fi
+          if [[ ! "$CORE_VERSION" =~ $version_pattern ]]; then
+            echo "Invalid core version: $CORE_VERSION"
+            exit 1
+          fi
+          if [[ ! "$OPERATION_ID" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$ ]]; then
+            echo "Invalid operation ID"
+            exit 1
+          fi
+          if [[ "$RELEASE_STATE" != "draft" && "$RELEASE_STATE" != "published" ]]; then
+            echo "Invalid release state: $RELEASE_STATE"
+            exit 1
+          fi
 
-          curl --output-dir ./temp/ --create-dirs -O -s -L "https://github.com/DataDog/serverless-components/releases/download/${SERVERLESS_COMPAT_VERSION}/datadog-serverless-compat.zip"
-          unzip ./temp/datadog-serverless-compat.zip -d ./datadog_serverless_compat
+          tag="v${PACKAGE_VERSION}"
+          if [[ "$GITHUB_REF" != "refs/tags/${tag}" ]]; then
+            echo "Expected refs/tags/${tag}, got ${GITHUB_REF}"
+            exit 1
+          fi
+
+          ref_json=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}")
+          if [[ "$(jq -r '.object.type' <<< "$ref_json")" != "commit" || "$(jq -r '.object.sha' <<< "$ref_json")" != "$GITHUB_SHA" ]]; then
+            echo "Tag ${tag} does not point directly to workflow commit ${GITHUB_SHA}"
+            exit 1
+          fi
+
+      - name: Require the published core release
+        run: |
+          set -euo pipefail
+
+          core_tag="datadog-serverless-compat/v${CORE_VERSION}"
+          encoded_tag="datadog-serverless-compat%2Fv${CORE_VERSION}"
+          curl --fail --silent --show-error \
+            "https://api.github.com/repos/DataDog/serverless-components/releases/tags/${encoded_tag}" \
+            > core-release.json
+
+          if ! jq -e --arg tag "$core_tag" '
+            .tag_name == $tag and
+            .draft == false and
+            ([.assets[] | select(.name == "datadog-serverless-compat.zip")] | length == 1)
+          ' core-release.json > /dev/null; then
+            echo "Core release ${core_tag} is not published with exactly one datadog-serverless-compat.zip asset"
+            exit 1
+          fi
+
+  prepare-draft:
+    if: >-
+      ${{ inputs.release-state == 'draft' &&
+          vars.RELEASE_AUTOMATION_ACTOR != '' &&
+          github.actor == vars.RELEASE_AUTOMATION_ACTOR &&
+          github.triggering_actor == vars.RELEASE_AUTOMATION_ACTOR }}
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download the selected core release asset
+        run: |
+          set -euo pipefail
+
+          encoded_tag="datadog-serverless-compat%2Fv${CORE_VERSION}"
+          curl --fail --silent --show-error \
+            "https://api.github.com/repos/DataDog/serverless-components/releases/tags/${encoded_tag}" \
+            > core-release.json
+          asset_url=$(jq -er '
+            [.assets[] | select(.name == "datadog-serverless-compat.zip")]
+            | if length == 1 then .[0].browser_download_url else error("core asset conflict") end
+          ' core-release.json)
+
+          mkdir -p temp
+          curl --fail --location --silent --show-error \
+            --output temp/datadog-serverless-compat.zip "$asset_url"
+          unzip -q temp/datadog-serverless-compat.zip -d datadog_serverless_compat
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: bin
+          name: python-release-${{ inputs.operation-id }}-bin
           path: datadog_serverless_compat/bin
-  build:
+          if-no-files-found: error
+          retention-days: 3
+
+  build-draft:
+    if: >-
+      ${{ inputs.release-state == 'draft' &&
+          vars.RELEASE_AUTOMATION_ACTOR != '' &&
+          github.actor == vars.RELEASE_AUTOMATION_ACTOR &&
+          github.triggering_actor == vars.RELEASE_AUTOMATION_ACTOR }}
+    needs: prepare-draft
     runs-on: ubuntu-latest
-    needs: [downloadbinaries]
-    env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          path: datadog_serverless_compat
+          name: python-release-${{ inputs.operation-id }}-bin
+          path: datadog_serverless_compat/bin
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: "3.10 - 3.13"
+          python-version: "3.13"
       - uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
           version: 1.8.5
-      - run: poetry version ${{ env.PACKAGE_VERSION }}
-      - run: poetry build
+      - name: Build wheel and source distribution
+        run: |
+          set -euo pipefail
+          poetry version "$PACKAGE_VERSION"
+          poetry build
+
+          expected_wheel="dist/datadog_serverless_compat-${PACKAGE_VERSION}-py3-none-any.whl"
+          expected_sdist="dist/datadog_serverless_compat-${PACKAGE_VERSION}.tar.gz"
+          if [[ ! -f "$expected_wheel" || ! -f "$expected_sdist" ]]; then
+            echo "The build did not produce the expected wheel and source distribution"
+            exit 1
+          fi
+          if [[ "$(find dist -maxdepth 1 -type f | wc -l)" -ne 2 ]]; then
+            echo "The build produced unexpected distribution files"
+            find dist -maxdepth 1 -type f -print
+            exit 1
+          fi
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: dist
+          name: python-release-${{ inputs.operation-id }}-dist
           path: dist
-  publish:
-    if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
+          if-no-files-found: error
+          retention-days: 3
+
+  create-draft-release:
+    if: >-
+      ${{ inputs.release-state == 'draft' &&
+          vars.RELEASE_AUTOMATION_ACTOR != '' &&
+          github.actor == vars.RELEASE_AUTOMATION_ACTOR &&
+          github.triggering_actor == vars.RELEASE_AUTOMATION_ACTOR }}
+    needs: build-draft
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    needs: [build]
-    steps:
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-      - uses: pypa/gh-action-pypi-publish@67339c736fd9354cd4f8cb0b744f2b82a74b5c70 # v1.12.3
-        with:
-          packages-dir: dist/
-          repository-url: ${{ github.event.inputs.publish-destination == 'PyPI' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
-  release:
-    if: ${{ github.event.inputs.publish-package == 'Build and Publish' && github.event.inputs.publish-destination == 'PyPI' }}
-    runs-on: ubuntu-latest
-    needs: [downloadbinaries, publish]
     permissions:
       contents: write
     env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
-      SERVERLESS_COMPAT_VERSION: ${{ needs.downloadbinaries.outputs.serverless-compat-version }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          body: "Uses [${{ env.SERVERLESS_COMPAT_VERSION }}](https://github.com/DataDog/serverless-components/releases/tag/${{ env.SERVERLESS_COMPAT_VERSION }}) of the Serverless Compatibility Layer binary."
-          draft: true
-          tag_name: "v${{ env.PACKAGE_VERSION }}"
-          generate_release_notes: true
-          make_latest: true
+          name: python-release-${{ inputs.operation-id }}-dist
+          path: dist
+      - name: Create or reconcile the draft release
+        run: |
+          set -euo pipefail
+
+          tag="v${PACKAGE_VERSION}"
+          core_tag="datadog-serverless-compat/v${CORE_VERSION}"
+          wheel="datadog_serverless_compat-${PACKAGE_VERSION}-py3-none-any.whl"
+          sdist="datadog_serverless_compat-${PACKAGE_VERSION}.tar.gz"
+          expected_assets=("$wheel" "$sdist")
+
+          ref_json=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}")
+          if [[ "$(jq -r '.object.type' <<< "$ref_json")" != "commit" || "$(jq -r '.object.sha' <<< "$ref_json")" != "$GITHUB_SHA" ]]; then
+            echo "Source tag conflict for ${tag}"
+            exit 1
+          fi
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            | jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' > releases.json
+          release_count=$(jq 'length' releases.json)
+          if [[ "$release_count" -gt 1 ]]; then
+            echo "Multiple releases exist for ${tag}"
+            exit 1
+          fi
+
+          if [[ "$release_count" -eq 0 ]]; then
+            body=$(cat <<EOF
+          Core release: \`${core_tag}\`
+          Source commit: \`${GITHUB_SHA}\`
+          Draft operation: \`${OPERATION_ID}\`
+          EOF
+          )
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$tag" \
+              -f name="$tag" \
+              -f body="$body" \
+              -F draft=true \
+              -F generate_release_notes=true > release.json
+          else
+            jq '.[0]' releases.json > release.json
+          fi
+
+          if [[ "$(jq -r '.draft' release.json)" != "true" || "$(jq -r '.name' release.json)" != "$tag" ]]; then
+            echo "Release ${tag} exists but is not the expected draft"
+            exit 1
+          fi
+          release_body=$(jq -r '.body // ""' release.json)
+          if ! grep -Fqx "Core release: \`${core_tag}\`" <<< "$release_body" \
+            || ! grep -Fqx "Source commit: \`${GITHUB_SHA}\`" <<< "$release_body" \
+            || ! grep -Eq '^Draft operation: `[^`]+`$' <<< "$release_body"; then
+            echo "Release ${tag} metadata conflicts with this build"
+            exit 1
+          fi
+
+          mapfile -t actual_assets < <(jq -r '.assets[].name' release.json)
+          for actual in "${actual_assets[@]}"; do
+            if [[ "$actual" != "$wheel" && "$actual" != "$sdist" ]]; then
+              echo "Unexpected release asset: ${actual}"
+              exit 1
+            fi
+          done
+
+          for asset in "${expected_assets[@]}"; do
+            asset_id=$(jq -r --arg name "$asset" '.assets[] | select(.name == $name) | .id' release.json)
+            if [[ -n "$asset_id" ]]; then
+              gh api -H "Accept: application/octet-stream" \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "existing-${asset}"
+              if ! cmp --silent "dist/${asset}" "existing-${asset}"; then
+                echo "Release asset ${asset} conflicts with the locally built file"
+                exit 1
+              fi
+            else
+              gh release upload "$tag" "dist/${asset}"
+            fi
+          done
+
+  prepare-published:
+    if: >-
+      ${{ inputs.release-state == 'published' &&
+          vars.RELEASE_AUTOMATION_ACTOR != '' &&
+          github.actor == vars.RELEASE_AUTOMATION_ACTOR &&
+          github.triggering_actor == vars.RELEASE_AUTOMATION_ACTOR }}
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      publish-required: ${{ steps.pypi.outputs.publish-required }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Require matching release and download its exact assets
+        run: |
+          set -euo pipefail
+
+          tag="v${PACKAGE_VERSION}"
+          core_tag="datadog-serverless-compat/v${CORE_VERSION}"
+          wheel="datadog_serverless_compat-${PACKAGE_VERSION}-py3-none-any.whl"
+          sdist="datadog_serverless_compat-${PACKAGE_VERSION}.tar.gz"
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            | jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' > releases.json
+          if [[ "$(jq 'length' releases.json)" -ne 1 ]]; then
+            echo "Exactly one existing draft or published release is required for ${tag}"
+            exit 1
+          fi
+          jq '.[0]' releases.json > release.json
+
+          release_body=$(jq -r '.body // ""' release.json)
+          if [[ "$(jq -r '.name' release.json)" != "$tag" ]] \
+            || ! grep -Fqx "Core release: \`${core_tag}\`" <<< "$release_body" \
+            || ! grep -Fqx "Source commit: \`${GITHUB_SHA}\`" <<< "$release_body" \
+            || ! grep -Eq '^Draft operation: `[^`]+`$' <<< "$release_body"; then
+            echo "Release ${tag} metadata conflicts with this publication"
+            exit 1
+          fi
+
+          mapfile -t asset_names < <(jq -r '.assets[].name' release.json)
+          if [[ "${#asset_names[@]}" -ne 2 ]]; then
+            echo "Release ${tag} does not have exactly two distribution assets"
+            exit 1
+          fi
+          for asset in "${asset_names[@]}"; do
+            if [[ "$asset" != "$wheel" && "$asset" != "$sdist" ]]; then
+              echo "Unexpected release asset: ${asset}"
+              exit 1
+            fi
+          done
+
+          mkdir dist
+          for asset in "$wheel" "$sdist"; do
+            asset_id=$(jq -er --arg name "$asset" '.assets[] | select(.name == $name) | .id' release.json)
+            gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "dist/${asset}"
+          done
+
+      - name: Reconcile existing PyPI files
+        id: pypi
+        run: |
+          set -euo pipefail
+
+          status=$(curl --silent --show-error --output pypi.json --write-out '%{http_code}' \
+            "https://pypi.org/pypi/${PACKAGE_NAME}/${PACKAGE_VERSION}/json")
+          if [[ "$status" == "404" ]]; then
+            echo "publish-required=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$status" != "200" ]]; then
+            echo "PyPI returned HTTP ${status}"
+            exit 1
+          fi
+
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          expected = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in Path("dist").iterdir()
+              if path.is_file()
+          }
+          data = json.loads(Path("pypi.json").read_text())
+          remote = {item["filename"]: item["digests"]["sha256"] for item in data["urls"]}
+
+          extra = sorted(remote.keys() - expected.keys())
+          conflicts = sorted(name for name in remote.keys() & expected.keys() if remote[name] != expected[name])
+          if extra or conflicts:
+              raise SystemExit(f"PyPI file conflict; unexpected={extra}, digest_mismatch={conflicts}")
+
+          missing = sorted(expected.keys() - remote.keys())
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"publish-required={'true' if missing else 'false'}\n")
+          PY
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: python-release-${{ inputs.operation-id }}-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 3
+
+  publish-pypi:
+    if: >-
+      ${{ inputs.release-state == 'published' &&
+          vars.RELEASE_AUTOMATION_ACTOR != '' &&
+          github.actor == vars.RELEASE_AUTOMATION_ACTOR &&
+          github.triggering_actor == vars.RELEASE_AUTOMATION_ACTOR }}
+    needs: prepare-published
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: python-release-${{ inputs.operation-id }}-dist
+          path: dist
+      - name: Revalidate the source and draft artifacts
+        run: |
+          set -euo pipefail
+
+          tag="v${PACKAGE_VERSION}"
+          core_tag="datadog-serverless-compat/v${CORE_VERSION}"
+          wheel="datadog_serverless_compat-${PACKAGE_VERSION}-py3-none-any.whl"
+          sdist="datadog_serverless_compat-${PACKAGE_VERSION}.tar.gz"
+
+          ref_json=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}")
+          if [[ "$(jq -r '.object.type' <<< "$ref_json")" != "commit" || "$(jq -r '.object.sha' <<< "$ref_json")" != "$GITHUB_SHA" ]]; then
+            echo "Source tag conflict for ${tag}"
+            exit 1
+          fi
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            | jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' > releases.json
+          if [[ "$(jq 'length' releases.json)" -ne 1 ]]; then
+            echo "Exactly one matching release is required for ${tag}"
+            exit 1
+          fi
+          jq '.[0]' releases.json > release.json
+          release_body=$(jq -r '.body // ""' release.json)
+          if [[ "$(jq -r '.name' release.json)" != "$tag" ]] \
+            || ! grep -Fqx "Core release: \`${core_tag}\`" <<< "$release_body" \
+            || ! grep -Fqx "Source commit: \`${GITHUB_SHA}\`" <<< "$release_body" \
+            || ! grep -Eq '^Draft operation: `[^`]+`$' <<< "$release_body"; then
+            echo "Release ${tag} metadata conflicts with this publication"
+            exit 1
+          fi
+          if [[ "$(jq -r '.draft' release.json)" == "false" ]] \
+            && ! grep -Eq '^Published operation: `[^`]+`$' <<< "$release_body"; then
+            echo "Published release ${tag} lacks publication metadata"
+            exit 1
+          fi
+
+          mapfile -t asset_names < <(jq -r '.assets[].name' release.json)
+          if [[ "${#asset_names[@]}" -ne 2 ]]; then
+            echo "Release ${tag} does not have exactly two distribution assets"
+            exit 1
+          fi
+          for asset in "$wheel" "$sdist"; do
+            asset_id=$(jq -er --arg name "$asset" '.assets[] | select(.name == $name) | .id' release.json)
+            gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "release-${asset}"
+            if ! cmp --silent "dist/${asset}" "release-${asset}"; then
+              echo "Release asset ${asset} changed before PyPI publication"
+              exit 1
+            fi
+          done
+          for asset in "${asset_names[@]}"; do
+            if [[ "$asset" != "$wheel" && "$asset" != "$sdist" ]]; then
+              echo "Unexpected release asset: ${asset}"
+              exit 1
+            fi
+          done
+      - name: Publish missing files to PyPI
+        if: ${{ needs.prepare-published.outputs.publish-required == 'true' }}
+        uses: pypa/gh-action-pypi-publish@67339c736fd9354cd4f8cb0b744f2b82a74b5c70 # v1.12.3
+        with:
+          packages-dir: dist/
+          skip-existing: true
+      - name: Verify the published PyPI files
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..12}; do
+            status=$(curl --silent --show-error --output pypi.json --write-out '%{http_code}' \
+              "https://pypi.org/pypi/${PACKAGE_NAME}/${PACKAGE_VERSION}/json")
+            if [[ "$status" == "200" ]] && python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          expected = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in Path("dist").iterdir()
+              if path.is_file()
+          }
+          data = json.loads(Path("pypi.json").read_text())
+          remote = {item["filename"]: item["digests"]["sha256"] for item in data["urls"]}
+          if remote != expected:
+              raise SystemExit("PyPI files are missing or conflict with the release assets")
+          PY
+            then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "PyPI did not report the exact release files"
+          exit 1
+
+  publish-github-release:
+    if: >-
+      ${{ inputs.release-state == 'published' &&
+          vars.RELEASE_AUTOMATION_ACTOR != '' &&
+          github.actor == vars.RELEASE_AUTOMATION_ACTOR &&
+          github.triggering_actor == vars.RELEASE_AUTOMATION_ACTOR }}
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: python-release-${{ inputs.operation-id }}-dist
+          path: dist
+      - name: Publish the matching GitHub release
+        run: |
+          set -euo pipefail
+
+          tag="v${PACKAGE_VERSION}"
+          core_tag="datadog-serverless-compat/v${CORE_VERSION}"
+          wheel="datadog_serverless_compat-${PACKAGE_VERSION}-py3-none-any.whl"
+          sdist="datadog_serverless_compat-${PACKAGE_VERSION}.tar.gz"
+
+          ref_json=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}")
+          if [[ "$(jq -r '.object.type' <<< "$ref_json")" != "commit" || "$(jq -r '.object.sha' <<< "$ref_json")" != "$GITHUB_SHA" ]]; then
+            echo "Source tag conflict for ${tag}"
+            exit 1
+          fi
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            | jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' > releases.json
+          if [[ "$(jq 'length' releases.json)" -ne 1 ]]; then
+            echo "Exactly one matching release is required for ${tag}"
+            exit 1
+          fi
+          jq '.[0]' releases.json > release.json
+
+          release_body=$(jq -r '.body // ""' release.json)
+          if [[ "$(jq -r '.name' release.json)" != "$tag" ]] \
+            || ! grep -Fqx "Core release: \`${core_tag}\`" <<< "$release_body" \
+            || ! grep -Fqx "Source commit: \`${GITHUB_SHA}\`" <<< "$release_body" \
+            || ! grep -Eq '^Draft operation: `[^`]+`$' <<< "$release_body"; then
+            echo "Release ${tag} metadata conflicts with this publication"
+            exit 1
+          fi
+
+          mapfile -t asset_names < <(jq -r '.assets[].name' release.json)
+          if [[ "${#asset_names[@]}" -ne 2 ]]; then
+            echo "Release ${tag} does not have exactly two distribution assets"
+            exit 1
+          fi
+          for asset in "$wheel" "$sdist"; do
+            asset_id=$(jq -er --arg name "$asset" '.assets[] | select(.name == $name) | .id' release.json)
+            gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "release-${asset}"
+            if ! cmp --silent "dist/${asset}" "release-${asset}"; then
+              echo "Release asset ${asset} changed before publication"
+              exit 1
+            fi
+          done
+          for asset in "${asset_names[@]}"; do
+            if [[ "$asset" != "$wheel" && "$asset" != "$sdist" ]]; then
+              echo "Unexpected release asset: ${asset}"
+              exit 1
+            fi
+          done
+
+          if [[ "$(jq -r '.draft' release.json)" == "false" ]]; then
+            if ! grep -Eq '^Published operation: `[^`]+`$' <<< "$release_body"; then
+              echo "Published release ${tag} lacks publication metadata"
+              exit 1
+            fi
+            echo "Release ${tag} is already published with matching assets"
+            exit 0
+          fi
+
+          published_body="${release_body}"
+          published_body+=$'\n\n'
+          published_body+="Published operation: \`${OPERATION_ID}\`"
+          release_id=$(jq -r '.id' release.json)
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+            -f body="$published_body" \
+            -F draft=false \
+            -f make_latest=true > published-release.json
+
+          if [[ "$(jq -r '.draft' published-release.json)" != "false" ]]; then
+            echo "GitHub release ${tag} was not published"
+            exit 1
+          fi
