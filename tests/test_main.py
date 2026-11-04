@@ -1,6 +1,7 @@
 from datadog_serverless_compat import main
 import pytest
 import sys
+from unittest.mock import Mock
 
 
 @pytest.mark.parametrize(
@@ -73,6 +74,40 @@ def test_get_binary_path_from_env_var(monkeypatch):
     binary_path = main.get_binary_path()
 
     assert binary_path == user_configured_path
+
+
+@pytest.mark.parametrize("custom_binary", [False, True])
+@pytest.mark.parametrize(
+    "environment", [main.CloudEnvironment.AZURE_FUNCTION, main.CloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_1ST_GEN]
+)
+def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, environment):
+    executable = tmp_path / "compat"
+    executable.write_bytes(b"test fixture")
+    monkeypatch.setattr(main, "get_environment", lambda: environment)
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(main, "get_package_version", lambda: "0.21.0")
+    monkeypatch.setattr(main.platform, "python_version", lambda: "3.13.7")
+    monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
+    if custom_binary:
+        monkeypatch.setenv("DD_SERVERLESS_COMPAT_PATH", str(executable))
+    else:
+        monkeypatch.delenv("DD_SERVERLESS_COMPAT_PATH", raising=False)
+        monkeypatch.setattr(main, "get_binary_path", lambda: str(executable))
+    monkeypatch.setenv("DD_SERVERLESS_COMPAT_VERSION", "stale")
+    monkeypatch.setenv("PYTHON_VERSION", "stale")
+    monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME_VERSION", "stale")
+    monkeypatch.setenv("DD_SERVICE", "keep-me")
+    child = Mock()
+    monkeypatch.setattr(main, "Popen", child)
+    main.start()
+    child.assert_called_once()
+    env = child.call_args.kwargs["env"]
+    assert env["DD_SERVERLESS_COMPAT_VERSION"] == "0.21.0"
+    assert env["PYTHON_VERSION"] == "3.13.7"
+    expected_worker = "3.13.7" if environment == main.CloudEnvironment.AZURE_FUNCTION else "stale"
+    assert env["FUNCTIONS_WORKER_RUNTIME_VERSION"] == expected_worker
+    assert env["DD_SERVICE"] == "keep-me"
+    assert main.os.environ["PYTHON_VERSION"] == "stale"
 
 
 @pytest.mark.parametrize(
