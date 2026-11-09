@@ -112,9 +112,7 @@ def start():
 
         env = os.environ.copy()
         env["DD_SERVERLESS_COMPAT_VERSION"] = package_version
-        env["PYTHON_VERSION"] = platform.python_version()
-        if environment == CloudEnvironment.AZURE_FUNCTION:
-            env["FUNCTIONS_WORKER_RUNTIME_VERSION"] = platform.python_version()
+        env["DD_SERVERLESS_COMPAT_RUNTIME"] = f"python{platform.python_version()}"
         Popen(executable_file_path, env=env)
     except Exception:
         logger.exception("An unexpected error occurred while spawning Serverless Compatibility Layer process")

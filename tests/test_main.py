@@ -77,13 +77,27 @@ def test_get_binary_path_from_env_var(monkeypatch):
 
 
 @pytest.mark.parametrize("custom_binary", [False, True])
+@pytest.mark.parametrize("worker_version", [None, "stale"])
 @pytest.mark.parametrize(
-    "environment", [main.CloudEnvironment.AZURE_FUNCTION, main.CloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_1ST_GEN]
+    "platform_env",
+    [
+        {"FUNCTIONS_EXTENSION_VERSION": "~4", "FUNCTIONS_WORKER_RUNTIME": "python"},
+        {"FUNCTION_NAME": "test-function", "GCP_PROJECT": "test-project"},
+        {"K_SERVICE": "test-service", "FUNCTION_TARGET": "handler"},
+    ],
 )
-def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, environment):
+def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, worker_version, platform_env):
     executable = tmp_path / "compat"
     executable.write_bytes(b"test fixture")
-    monkeypatch.setattr(main, "get_environment", lambda: environment)
+    for key in (
+        "FUNCTIONS_EXTENSION_VERSION", "FUNCTIONS_WORKER_RUNTIME", "FUNCTION_NAME",
+        "GCP_PROJECT", "K_SERVICE", "FUNCTION_TARGET", "WEBSITE_SKU", "FUNCTIONS_WORKER_RUNTIME_VERSION",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in platform_env.items():
+        monkeypatch.setenv(key, value)
+    if worker_version is not None:
+        monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME_VERSION", worker_version)
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(main, "get_package_version", lambda: "0.21.0")
     monkeypatch.setattr(main.platform, "python_version", lambda: "3.13.7")
@@ -94,8 +108,8 @@ def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, en
         monkeypatch.delenv("DD_SERVERLESS_COMPAT_PATH", raising=False)
         monkeypatch.setattr(main, "get_binary_path", lambda: str(executable))
     monkeypatch.setenv("DD_SERVERLESS_COMPAT_VERSION", "stale")
+    monkeypatch.setenv("DD_SERVERLESS_COMPAT_RUNTIME", "stale")
     monkeypatch.setenv("PYTHON_VERSION", "stale")
-    monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME_VERSION", "stale")
     monkeypatch.setenv("DD_SERVICE", "keep-me")
     child = Mock()
     monkeypatch.setattr(main, "Popen", child)
@@ -103,11 +117,16 @@ def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, en
     child.assert_called_once()
     env = child.call_args.kwargs["env"]
     assert env["DD_SERVERLESS_COMPAT_VERSION"] == "0.21.0"
-    assert env["PYTHON_VERSION"] == "3.13.7"
-    expected_worker = "3.13.7" if environment == main.CloudEnvironment.AZURE_FUNCTION else "stale"
-    assert env["FUNCTIONS_WORKER_RUNTIME_VERSION"] == expected_worker
+    assert env["DD_SERVERLESS_COMPAT_RUNTIME"] == "python3.13.7"
+    assert env["PYTHON_VERSION"] == "stale"
+    if worker_version is None:
+        assert "FUNCTIONS_WORKER_RUNTIME_VERSION" not in env
+    else:
+        assert env["FUNCTIONS_WORKER_RUNTIME_VERSION"] == worker_version
     assert env["DD_SERVICE"] == "keep-me"
     assert main.os.environ["PYTHON_VERSION"] == "stale"
+    assert main.os.environ["DD_SERVERLESS_COMPAT_RUNTIME"] == "stale"
+    assert main.os.environ.get("FUNCTIONS_WORKER_RUNTIME_VERSION") == worker_version
 
 
 @pytest.mark.parametrize(
