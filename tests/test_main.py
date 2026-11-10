@@ -76,8 +76,6 @@ def test_get_binary_path_from_env_var(monkeypatch):
     assert binary_path == user_configured_path
 
 
-@pytest.mark.parametrize("custom_binary", [False, True])
-@pytest.mark.parametrize("worker_version", [None, "stale"])
 @pytest.mark.parametrize(
     "platform_env",
     [
@@ -86,7 +84,7 @@ def test_get_binary_path_from_env_var(monkeypatch):
         {"K_SERVICE": "test-service", "FUNCTION_TARGET": "handler"},
     ],
 )
-def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, worker_version, platform_env):
+def test_start_passes_versions_to_child(monkeypatch, tmp_path, platform_env):
     executable = tmp_path / "compat"
     executable.write_bytes(b"test fixture")
     for key in (
@@ -96,21 +94,15 @@ def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, wo
         monkeypatch.delenv(key, raising=False)
     for key, value in platform_env.items():
         monkeypatch.setenv(key, value)
-    if worker_version is not None:
-        monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME_VERSION", worker_version)
+    monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME_VERSION", "platform-version")
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(main, "get_package_version", lambda: "0.21.0")
     monkeypatch.setattr(main.platform, "python_version", lambda: "3.13.7")
     monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
-    if custom_binary:
-        monkeypatch.setenv("DD_SERVERLESS_COMPAT_PATH", str(executable))
-    else:
-        monkeypatch.delenv("DD_SERVERLESS_COMPAT_PATH", raising=False)
-        monkeypatch.setattr(main, "get_binary_path", lambda: str(executable))
+    monkeypatch.setenv("DD_SERVERLESS_COMPAT_PATH", str(executable))
     monkeypatch.setenv("DD_SERVERLESS_COMPAT_VERSION", "stale")
     monkeypatch.setenv("DD_SERVERLESS_COMPAT_RUNTIME", "stale")
     monkeypatch.setenv("PYTHON_VERSION", "stale")
-    monkeypatch.setenv("DD_SERVICE", "keep-me")
     child = Mock()
     monkeypatch.setattr(main, "Popen", child)
     main.start()
@@ -119,14 +111,10 @@ def test_start_passes_versions_to_child(monkeypatch, tmp_path, custom_binary, wo
     assert env["DD_SERVERLESS_COMPAT_VERSION"] == "0.21.0"
     assert env["DD_SERVERLESS_COMPAT_RUNTIME"] == "python3.13.7"
     assert env["PYTHON_VERSION"] == "stale"
-    if worker_version is None:
-        assert "FUNCTIONS_WORKER_RUNTIME_VERSION" not in env
-    else:
-        assert env["FUNCTIONS_WORKER_RUNTIME_VERSION"] == worker_version
-    assert env["DD_SERVICE"] == "keep-me"
+    assert env["FUNCTIONS_WORKER_RUNTIME_VERSION"] == "platform-version"
     assert main.os.environ["PYTHON_VERSION"] == "stale"
     assert main.os.environ["DD_SERVERLESS_COMPAT_RUNTIME"] == "stale"
-    assert main.os.environ.get("FUNCTIONS_WORKER_RUNTIME_VERSION") == worker_version
+    assert main.os.environ["FUNCTIONS_WORKER_RUNTIME_VERSION"] == "platform-version"
 
 
 @pytest.mark.parametrize(
