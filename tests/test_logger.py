@@ -8,7 +8,7 @@ def test_logger_has_custom_log_levels():
         # Added in version 3.11
         level_mapping = logging.getLevelNamesMapping()
     except AttributeError:
-        level_mapping = logging._nameToLevel.copy()
+        level_mapping = {name: num for num, name in logging._levelToName.items()}
 
     assert level_mapping == {
         "CRITICAL": 50,
