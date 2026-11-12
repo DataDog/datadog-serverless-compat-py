@@ -1,6 +1,7 @@
 from datadog_serverless_compat import main
 import pytest
 import sys
+from unittest.mock import Mock
 
 
 @pytest.mark.parametrize(
@@ -73,6 +74,47 @@ def test_get_binary_path_from_env_var(monkeypatch):
     binary_path = main.get_binary_path()
 
     assert binary_path == user_configured_path
+
+
+@pytest.mark.parametrize(
+    "platform_env",
+    [
+        {"FUNCTIONS_EXTENSION_VERSION": "~4", "FUNCTIONS_WORKER_RUNTIME": "python"},
+        {"FUNCTION_NAME": "test-function", "GCP_PROJECT": "test-project"},
+        {"K_SERVICE": "test-service", "FUNCTION_TARGET": "handler"},
+    ],
+)
+def test_start_passes_versions_to_child(monkeypatch, tmp_path, platform_env):
+    executable = tmp_path / "compat"
+    executable.write_bytes(b"test fixture")
+    for key in (
+        "FUNCTIONS_EXTENSION_VERSION", "FUNCTIONS_WORKER_RUNTIME", "FUNCTION_NAME",
+        "GCP_PROJECT", "K_SERVICE", "FUNCTION_TARGET", "WEBSITE_SKU", "FUNCTIONS_WORKER_RUNTIME_VERSION",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in platform_env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("FUNCTIONS_WORKER_RUNTIME_VERSION", "platform-version")
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(main, "get_package_version", lambda: "0.21.0")
+    monkeypatch.setattr(main.platform, "python_version", lambda: "3.13.7")
+    monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("DD_SERVERLESS_COMPAT_PATH", str(executable))
+    monkeypatch.setenv("DD_SERVERLESS_COMPAT_VERSION", "stale")
+    monkeypatch.setenv("DD_SERVERLESS_COMPAT_RUNTIME", "stale")
+    monkeypatch.setenv("PYTHON_VERSION", "stale")
+    child = Mock()
+    monkeypatch.setattr(main, "Popen", child)
+    main.start()
+    child.assert_called_once()
+    env = child.call_args.kwargs["env"]
+    assert env["DD_SERVERLESS_COMPAT_VERSION"] == "0.21.0"
+    assert env["DD_SERVERLESS_COMPAT_RUNTIME"] == "python3.13.7"
+    assert env["PYTHON_VERSION"] == "stale"
+    assert env["FUNCTIONS_WORKER_RUNTIME_VERSION"] == "platform-version"
+    assert main.os.environ["PYTHON_VERSION"] == "stale"
+    assert main.os.environ["DD_SERVERLESS_COMPAT_RUNTIME"] == "stale"
+    assert main.os.environ["FUNCTIONS_WORKER_RUNTIME_VERSION"] == "platform-version"
 
 
 @pytest.mark.parametrize(
